@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Bohairic.Core\Bohairic.Core.csproj" />
+    <None Include="..\..\src\Bohairic.Desktop\Data\bohairic_dictionary.json" Link="bohairic_dictionary.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

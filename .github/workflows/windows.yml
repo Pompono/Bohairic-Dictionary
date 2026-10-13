@@ -1,0 +1,24 @@
+name: Windows build
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Test and publish native app
+        shell: pwsh
+        run: ./scripts/build.ps1 -Test -Publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BohairicDictionary-windows-x64
+          path: artifacts/BohairicDictionary/
+          if-no-files-found: error

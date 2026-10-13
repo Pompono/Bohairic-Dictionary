@@ -1,0 +1,19 @@
+Free Serif Avva Shenouda
+
+File: FreeSerifAvvaShenouda.ttf
+Source: https://github.com/Pompono/Coptic/blob/main/public/FreeSerifAvvaShenouda.ttf
+Git blob SHA-1: f4ec1dbb065838105222dde317ed74b4a6a718d7
+
+The font file is bundled unchanged from the user's repository.
+
+The following attribution and license statements are embedded in the font's
+OpenType name table:
+
+"Copyleft 2002, 2003, 2005 Free Software Foundation with Avva Shenouda merged"
+
+"The use of this font is granted subject to GNU General Public License."
+
+Embedded license URL: http://www.gnu.org/copyleft/gpl.html
+
+Internal family name: FreeSerifAvvaShenouda
+Full font name: Free Serif Avva Shenouda

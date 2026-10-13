@@ -1,0 +1,50 @@
+using System.Globalization;
+using System.Text;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
+using Microsoft.UI.Xaml.Media;
+
+namespace Bohairic.Desktop;
+
+/// <summary>Uses the repository font only for Coptic text elements, including their combining marks.</summary>
+public sealed class CopticTypography : DependencyObject
+{
+    public static FontFamily Font { get; } = new("ms-appx:///Assets/FreeSerifAvvaShenouda.ttf#FreeSerifAvvaShenouda");
+    public static FontFamily InterfaceFont { get; } = new("Segoe UI");
+    public static readonly DependencyProperty TextProperty = DependencyProperty.RegisterAttached(
+        "Text", typeof(string), typeof(CopticTypography), new PropertyMetadata("", OnTextChanged));
+
+    public static string GetText(DependencyObject element) => (string)element.GetValue(TextProperty);
+    public static void SetText(DependencyObject element, string value) => element.SetValue(TextProperty, value);
+    public static bool ContainsCoptic(string value) => value.Any(c => c is >= '\u2C80' and <= '\u2CFF' or >= '\u03E2' and <= '\u03EF');
+
+    private static void OnTextChanged(DependencyObject element, DependencyPropertyChangedEventArgs args)
+    {
+        if (element is not TextBlock block) return;
+        block.Inlines.Clear();
+        var elements = StringInfo.GetTextElementEnumerator(args.NewValue as string ?? "");
+        var buffer = new StringBuilder();
+        bool currentCoptic = false;
+        void Flush()
+        {
+            if (buffer.Length == 0) return;
+            var run = new Run
+            {
+                Text = buffer.ToString(),
+                FontFamily = currentCoptic ? Font : InterfaceFont
+            };
+            if (!currentCoptic) Typography.SetStandardLigatures(run, false);
+            block.Inlines.Add(run);
+            buffer.Clear();
+        }
+        while (elements.MoveNext())
+        {
+            var text = elements.GetTextElement();
+            bool coptic = ContainsCoptic(text);
+            if (coptic != currentCoptic) { Flush(); currentCoptic = coptic; }
+            buffer.Append(text);
+        }
+        Flush();
+    }
+}
