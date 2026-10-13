@@ -27,15 +27,7 @@ public sealed class CopticTypography : DependencyObject
         block.Visibility = value.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
         SetText(block, value.Text);
         block.TextHighlighters.Clear();
-        if (value.Ranges.Count == 0) return;
-        var highlighter = new TextHighlighter
-        {
-            Background = new SolidColorBrush(Microsoft.UI.Colors.Gold),
-            Foreground = new SolidColorBrush(Microsoft.UI.Colors.Black)
-        };
-        foreach (var range in value.Ranges)
-            highlighter.Ranges.Add(new TextRange { StartIndex = range.Start, Length = range.Length });
-        block.TextHighlighters.Add(highlighter);
+        // Keep match explanations, but use normal theme text without colored backgrounds.
     }
 
     public static string GetText(DependencyObject element) => (string)element.GetValue(TextProperty);

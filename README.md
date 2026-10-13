@@ -15,7 +15,7 @@ The published Windows x64 build contains its .NET and Windows App SDK runtimes. 
 - Only the supplied `bohairic_dictionary.json`: **8,134 entries** and **7,098 distinct headwords**. No Sahidic or combined dataset is bundled or loaded.
 - Ranked Coptic and English search, including variants, complete English meanings, whole-word matches, multiword queries, and optional spelling suggestions. Search all fields, Coptic words, or English meanings.
 - Transliteration lookup using English letters (for example, `agape`, `agapi`, or `agapee` for ⲁⲅⲁⲡⲏ), with exact/prefix matching of headwords and variants. Select Transliteration to search only these spellings; All fields includes them below strong English matches.
-- Match explanations and highlighted original text, including matching variants and metadata. Highlights preserve combining marks and the Coptic font.
+- Match explanations with matching variants and metadata, using normal theme text without colored highlighting.
 - Optional search without combining marks, preserving original displayed text and favoring exact spelling.
 - Coptic alphabet ordering, initial-letter browsing, and part-of-speech filtering.
 - Entry meanings, variants, grammatical information, etymology, Greek-origin metadata, Crum references, and source references when present.
@@ -73,3 +73,9 @@ Supported spellings: ⲁ a; ⲃ b/v; ⲅ g; ⲇ d; ⲉ e; ⲋ so/6; ⲍ z; ⲏ e
 ## Releases
 
 Pushing a version tag such as `v1.2.0` runs the Windows tests and build, packages the complete self-contained Windows x64 app, and publishes a GitHub release with a ZIP and SHA-256 checksum. Branch builds continue to provide Actions artifacts. The portable executable is unsigned.
+
+## Windows download warning
+
+The current portable release is unsigned, so Windows may display “Windows protected your PC” and “Unknown publisher.” An icon or installer alone does not resolve this. Production distribution needs a trusted signing identity; even signed direct downloads can show warnings while reputation builds. Microsoft Store distribution using MSIX provides Microsoft-managed signing after certification.
+
+See Microsoft's [SmartScreen guidance](https://learn.microsoft.com/windows/apps/package-and-deploy/smartscreen-reputation) and [code-signing options](https://learn.microsoft.com/windows/apps/package-and-deploy/code-signing-options). This project does not disable Windows protections or install self-signed trust certificates.

@@ -61,6 +61,7 @@ public sealed class MainWindow : Window
     {
         preferences = store.Load();
         Title = "Bohairic Dictionary";
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "BohairicDictionary.ico"));
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1240, 820));
         Content = root;
         ApplyTheme();
@@ -552,7 +553,7 @@ public sealed class MainWindow : Window
         if (preferences.RecentSearches.Count > 0)
             settingsPage.Children.Add(Button("Clear recent searches", (_, _) => { preferences.RecentSearches.Clear(); SavePreferences(); BuildSettings(); }));
         settingsPage.Children.Add(Text("ABOUT THIS DICTIONARY", 12));
-        settingsPage.Children.Add(Text("Bohairic Dictionary 1.2\nNative Windows app · works offline\nOnly the supplied Bohairic dataset is included. No Sahidic or combined lexicon is loaded."));
+        settingsPage.Children.Add(Text("Bohairic Dictionary 1.2.1\nNative Windows app · works offline\nOnly the supplied Bohairic dataset is included. No Sahidic or combined lexicon is loaded."));
         settingsPage.Children.Add(Text("Favorites and preferences are stored on this computer:\n" + store.DirectoryPath, 12));
         settingsPage.Children.Add(Text("Coptic font: Free Serif Avva Shenouda, from your Coptic repository. Font attribution and embedded license information are included in Assets/FONT-NOTICE.txt.", 12));
     }
