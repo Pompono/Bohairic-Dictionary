@@ -1,10 +1,12 @@
-# Bohairic Dictionary for Windows
+﻿# Bohairic Dictionary for Windows
 
 A native **C# / WinUI 3** desktop dictionary. It does not use a browser, web server, Electron, or an internet service.
 
 ## Run the app
 
-Build with `./scripts/build.ps1 -Test -Publish`, then open `artifacts/BohairicDictionary/BohairicDictionary.exe`. You can also download the Windows build artifact from a successful run in the repository's Actions tab. Extract the full artifact before launching the executable.
+Download **BohairicDictionary-windows-x64.zip** from the [latest release](https://github.com/Pompono/Bohairic-Dictionary/releases/latest), extract the entire ZIP, and open `BohairicDictionary.exe`. Keep all extracted files together.
+
+To build it yourself, use `./scripts/build.ps1 -Test -Publish`, then open `artifacts/BohairicDictionary/BohairicDictionary.exe`. You can also download the Windows build artifact from a successful run in the repository's Actions tab. Extract the full artifact before launching the executable.
 
 The published Windows x64 build contains its .NET and Windows App SDK runtimes. Keep the entire `BohairicDictionary` folder together when moving it to another location. No developer tools are needed to run it. Windows 10 version 1809 or newer is required; this build was exercised on this Windows machine.
 
@@ -12,6 +14,8 @@ The published Windows x64 build contains its .NET and Windows App SDK runtimes. 
 
 - Only the supplied `bohairic_dictionary.json`: **8,134 entries** and **7,098 distinct headwords**. No Sahidic or combined dataset is bundled or loaded.
 - Ranked Coptic and English search, including variants, complete English meanings, whole-word matches, multiword queries, and optional spelling suggestions. Search all fields, Coptic words, or English meanings.
+- Transliteration lookup using English letters (for example, `agape`, `agapi`, or `agapee` for ⲁⲅⲁⲡⲏ), with exact/prefix matching of headwords and variants. Select Transliteration to search only these spellings; All fields includes them below strong English matches.
+- Match explanations and highlighted original text, including matching variants and metadata. Highlights preserve combining marks and the Coptic font.
 - Optional search without combining marks, preserving original displayed text and favoring exact spelling.
 - Coptic alphabet ordering, initial-letter browsing, and part-of-speech filtering.
 - Entry meanings, variants, grammatical information, etymology, Greek-origin metadata, Crum references, and source references when present.
@@ -59,3 +63,13 @@ Dictionary data: the user's supplied Bohairic dictionary. Its existing source an
 Coptic keyboard layout and dictionary concepts are adapted from the user's [Pompono/Coptic](https://github.com/Pompono/Coptic) project. The native Windows interface and C# implementation are new.
 
 Free Serif Avva Shenouda: copied unchanged from `Pompono/Coptic/public/FreeSerifAvvaShenouda.ttf`. The embedded font metadata identifies the Free Software Foundation with Avva Shenouda merged and grants use under the GNU General Public License. See `src/Bohairic.Desktop/Assets/FONT-NOTICE.txt` (also distributed with the app).
+
+## Transliteration lookup
+
+This is a typing aid, not a pronunciation guide. It ignores Coptic combining marks, accepts uppercase Latin input, and searches from the beginning of a word or variant. Collisions can produce several results, so all such matches are labeled approximate. English and Coptic scopes retain their original behavior.
+
+Supported spellings: ⲁ a; ⲃ b/v; ⲅ g; ⲇ d; ⲉ e; ⲋ so/6; ⲍ z; ⲏ e/i/ee; ⲑ th; ⲓ i/y; ⲕ k; ⲗ l; ⲙ m; ⲛ n; ⲝ x/ks; ⲟ o; ⲡ p; ⲣ r; ⲥ s; ⲧ t; ⲩ u/y; ⲫ ph/f; ⲭ ch/kh; ⲯ ps; ⲱ o/oo; ϣ sh; ϥ f; ϧ kh/x; ϩ h; ϫ j/dj; ϭ ch/tsh; ϯ ti/tee. These are explicit lookup conventions, not context-sensitive phonetic rules.
+
+## Releases
+
+Pushing a version tag such as `v1.2.0` runs the Windows tests and build, packages the complete self-contained Windows x64 app, and publishes a GitHub release with a ZIP and SHA-256 checksum. Branch builds continue to provide Actions artifacts. The portable executable is unsigned.

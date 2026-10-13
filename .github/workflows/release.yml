@@ -1,0 +1,31 @@
+name: Windows release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Test and publish
+        shell: pwsh
+        run: ./scripts/build.ps1 -Test -Publish
+      - name: Package portable app
+        shell: pwsh
+        run: |
+          Copy-Item README.md artifacts/BohairicDictionary/README.md
+          Compress-Archive -Path artifacts/BohairicDictionary/* -DestinationPath artifacts/BohairicDictionary-windows-x64.zip
+          $hash = (Get-FileHash artifacts/BohairicDictionary-windows-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  BohairicDictionary-windows-x64.zip" | Set-Content artifacts/SHA256SUMS.txt
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME artifacts/BohairicDictionary-windows-x64.zip artifacts/SHA256SUMS.txt --verify-tag --title "Bohairic Dictionary $env:GITHUB_REF_NAME" --notes "Download the Windows x64 ZIP, extract every file, then run BohairicDictionary.exe. No SDK is needed. This portable build is unsigned. See the README for search features and supported transliteration spellings." --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }

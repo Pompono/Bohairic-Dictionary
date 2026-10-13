@@ -1,4 +1,4 @@
-using Bohairic.Core;
+﻿using Bohairic.Core;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -24,10 +24,10 @@ public sealed class MainWindow : Window
     private readonly StackPanel settingsPage = new() { Spacing = 22, Padding = new Thickness(32), MaxWidth = 760, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock heading = Text("Dictionary", 32);
     private readonly TextBlock resultCount = Text("Loading your dictionary…", 13);
-    private readonly TextBox search = new() { PlaceholderText = "Search Coptic or English", FontSize = 19, MinHeight = 48 };
+    private readonly TextBox search = new() { PlaceholderText = "Search Coptic, English, or transliteration", FontSize = 19, MinHeight = 48 };
     private readonly ComboBox posFilter = new() { Width = 190, PlaceholderText = "All parts of speech" };
     private readonly ComboBox letterFilter = new() { Width = 165, Visibility = Visibility.Collapsed };
-    private readonly ComboBox searchScope = new() { Width = 130, ItemsSource = new[] { "All fields", "Coptic words", "English meanings" }, SelectedIndex = 0 };
+    private readonly ComboBox searchScope = new() { Width = 170, ItemsSource = new[] { "All fields", "Coptic words", "English meanings", "Transliteration" }, SelectedIndex = 0 };
     private readonly StackPanel suggestions = new() { Orientation = Orientation.Horizontal, Spacing = 8, Visibility = Visibility.Collapsed };
     private readonly Grid dictionarySplit = new();
     private readonly Grid listPane = new();
@@ -46,7 +46,7 @@ public sealed class MainWindow : Window
     private static FontFamily copticFont => CopticTypography.Font;
     private readonly Button favoriteButton = new();
     private readonly Button moreButton = new() { Content = "Show more results", HorizontalAlignment = HorizontalAlignment.Stretch };
-    private IReadOnlyList<DictionaryEntry> currentResults = [];
+    private IReadOnlyList<SearchMatch> currentResults = [];
     private CancellationTokenSource? searchCancellation;
     private DictionaryEntry? selected;
     private string currentPage = "Dictionary";
@@ -151,7 +151,7 @@ public sealed class MainWindow : Window
         searchRow.ColumnDefinitions.Add(new ColumnDefinition());
         searchRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         searchRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        Name(search, "Search Coptic or English");
+        Name(search, "Search Coptic, English, or transliteration");
         search.TextChanged += (_, _) =>
         {
             search.FontFamily = HasCoptic(search.Text) ? copticFont : CopticTypography.InterfaceFont;
@@ -172,6 +172,9 @@ public sealed class MainWindow : Window
         ToolTipService.SetToolTip(keys, "Coptic keyboard");
         Grid.SetColumn(keys, 2); searchRow.Children.Add(keys);
         header.Children.Add(searchRow);
+        var searchHelp = Text("English letters: agape / agapi → ⲁⲅⲁⲡⲏ. Transliteration matches are approximate; spellings are not pronunciation guides.", 12);
+        searchHelp.Opacity = 0.75;
+        header.Children.Add(searchHelp);
         var filters = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         Name(posFilter, "Part of speech");
         posFilter.SelectionChanged += (_, _) => QueueSearch();
@@ -201,7 +204,7 @@ public sealed class MainWindow : Window
         Name(results, "Dictionary results");
         results.SelectionChanged += (_, _) =>
         {
-            selected = results.SelectedItem as DictionaryEntry;
+            selected = (results.SelectedItem as SearchMatch)?.Entry;
             ShowEntry();
         };
         listPane.Children.Add(results);
@@ -282,7 +285,7 @@ public sealed class MainWindow : Window
         try
         {
             await Task.Delay(110, cancellation.Token);
-            var found = await Task.Run(() => dictionary.Search(options, cancellation.Token), cancellation.Token);
+            var found = await Task.Run(() => dictionary.SearchMatches(options, cancellation.Token), cancellation.Token);
             var spelling = found.Count == 0 ? await Task.Run(() => dictionary.Suggest(options, cancellation.Token), cancellation.Token) : [];
             if (closed || cancellation.IsCancellationRequested) return;
             var previousId = lastQuery == options.Query ? selected?.Id : null;
@@ -340,6 +343,11 @@ public sealed class MainWindow : Window
         var badge = Text("BOHAIRIC  /  DICTIONARY", 11); badge.Opacity = 0.65;
         details.Children.Add(badge);
         var word = Text(selected.Word, preferences.CopticTextSize + 12); word.FontFamily = copticFont;
+        if (results.SelectedItem is SearchMatch match)
+        {
+            CopticTypography.SetHighlighted(word, match.WordText);
+            if (match.MatchLabel.Length > 0) details.Children.Add(Text(match.MatchLabel, 12));
+        }
         details.Children.Add(word);
         if (!string.IsNullOrWhiteSpace(selected.PartOfSpeech)) details.Children.Add(Text(selected.PartOfSpeech, 15));
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
@@ -432,8 +440,10 @@ public sealed class MainWindow : Window
         var xaml = FormattableString.Invariant($$"""
             <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:local="using:Bohairic.Desktop">
               <StackPanel Padding="8,14" Spacing="8" UseLayoutRounding="True">
-                <TextBlock Text="{Binding Word}" FontFamily="ms-appx:///Assets/FreeSerifAvvaShenouda.ttf#FreeSerifAvvaShenouda" FontSize="{{preferences.CopticTextSize}}" LineHeight="{{Math.Ceiling(preferences.CopticTextSize * 1.5)}}" LineStackingStrategy="MaxHeight" TextWrapping="Wrap"/>
-                <TextBlock local:CopticTypography.Text="{Binding Preview}" FontFamily="Segoe UI" FontSize="{{preferences.EnglishTextSize}}" LineHeight="{{Math.Ceiling(preferences.EnglishTextSize * 1.5)}}" LineStackingStrategy="MaxHeight" Typography.StandardLigatures="False" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"/>
+                <TextBlock local:CopticTypography.Highlighted="{Binding WordText}" FontFamily="ms-appx:///Assets/FreeSerifAvvaShenouda.ttf#FreeSerifAvvaShenouda" FontSize="{{preferences.CopticTextSize}}" LineHeight="{{Math.Ceiling(preferences.CopticTextSize * 1.5)}}" LineStackingStrategy="MaxHeight" TextWrapping="Wrap"/>
+                <TextBlock local:CopticTypography.Highlighted="{Binding PreviewText}" FontFamily="Segoe UI" FontSize="{{preferences.EnglishTextSize}}" LineHeight="{{Math.Ceiling(preferences.EnglishTextSize * 1.5)}}" LineStackingStrategy="MaxHeight" Typography.StandardLigatures="False" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis"/>
+                <TextBlock local:CopticTypography.Highlighted="{Binding LabelText}" FontFamily="Segoe UI" FontSize="12" TextWrapping="Wrap" Opacity="0.8"/>
+                <TextBlock local:CopticTypography.Highlighted="{Binding EvidenceText}" FontSize="{{preferences.EnglishTextSize}}" TextWrapping="Wrap"/>
                 <TextBlock Text="{Binding Subtitle}" FontFamily="Segoe UI" FontSize="12" LineHeight="20" Opacity="0.7"/>
               </StackPanel>
             </DataTemplate>
@@ -542,7 +552,7 @@ public sealed class MainWindow : Window
         if (preferences.RecentSearches.Count > 0)
             settingsPage.Children.Add(Button("Clear recent searches", (_, _) => { preferences.RecentSearches.Clear(); SavePreferences(); BuildSettings(); }));
         settingsPage.Children.Add(Text("ABOUT THIS DICTIONARY", 12));
-        settingsPage.Children.Add(Text("Bohairic Dictionary 1.1\nNative Windows app · works offline\nOnly the supplied Bohairic dataset is included. No Sahidic or combined lexicon is loaded."));
+        settingsPage.Children.Add(Text("Bohairic Dictionary 1.2\nNative Windows app · works offline\nOnly the supplied Bohairic dataset is included. No Sahidic or combined lexicon is loaded."));
         settingsPage.Children.Add(Text("Favorites and preferences are stored on this computer:\n" + store.DirectoryPath, 12));
         settingsPage.Children.Add(Text("Coptic font: Free Serif Avva Shenouda, from your Coptic repository. Font attribution and embedded license information are included in Assets/FONT-NOTICE.txt.", 12));
     }

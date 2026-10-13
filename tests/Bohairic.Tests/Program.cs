@@ -1,4 +1,4 @@
-using Bohairic.Core;
+﻿using Bohairic.Core;
 using System.Diagnostics;
 using System.Text.Json;
 
@@ -102,6 +102,34 @@ try
     Check(sample.Suggest(new("lvoe", FavoriteIds: new HashSet<string>())).Count == 0, "Suggestions respect favorites filtering");
     Check(sample.GetCrossReferences(sample.Entries.First(x => x.Word == "ⲏ")).Single() == "ⲁⲅⲁⲡⲏ", "Numbered cross-references resolve a known target");
     Check(sample.GetCrossReferences(sample.Entries.First(x => x.Word == "ⲑ")).Count == 0, "Unresolved cross-references do not create broken links");
+    foreach (var spelling in new[] { "agape", "agapi", "AGAPEE", "agap" })
+        Check(sample.Search(new(spelling, Scope: SearchScope.Transliteration)).Any(x => x.Word == "ⲁⲅⲁⲡⲏ"), "Transliteration finds " + spelling);
+    Check(sample.Search(new("agape", Scope: SearchScope.English)).Count == 0, "English scope excludes transliteration");
+    Check(sample.Search(new("agape", Scope: SearchScope.Coptic)).Count == 0, "Coptic scope requires Coptic input");
+    Check(sample.Search(new("agape", FavoriteIds: new HashSet<string>(), Scope: SearchScope.Transliteration)).Count == 0, "Transliteration respects favorites");
+    Check(sample.Search(new("agape", Initial: "ϣ", Scope: SearchScope.Transliteration)).Count == 0, "Transliteration respects initial filter");
+    Check(Transliteration.Match(Transliteration.Index("ϣⲁⲓ"), "shai") == 0, "Multiletter transliteration sh matches one Coptic letter");
+    Check(Transliteration.Match(Transliteration.Index("ϣⲁⲓ"), "s") == 1, "Partial digraph can start a transliteration search");
+    Check(Transliteration.Match(Transliteration.Index("ϣⲁⲓ"), "shait") == -1, "Longer query cannot match a shorter word");
+    Check(Transliteration.Match(Transliteration.Index("ⲁ̄ⲅⲁⲡⲏ"), "agape") == 0, "Transliteration ignores Coptic marks");
+    Check(sample.SearchMatches(new("agape")).Single().MatchLabel.StartsWith("Transliteration"), "Latin matches are explicitly explained");
+    var phrase = SearchText.Highlight("Drink fresh water", "water drink", true);
+    Check(phrase.Ranges.Select(r => phrase.Text.Substring(r.Start, r.Length)).SequenceEqual(new[] { "Drink", "water" }), "Unordered English terms highlight in original text");
+    var combining = SearchText.Highlight("ⲁ̄ⲃ ⲁ̄", "ⲁ", true);
+    Check(combining.Ranges.Count == 2 && combining.Ranges.All(r => r.Length == 2), "Folded highlights include complete combining sequences");
+    Check(SearchText.Highlight("ⲁ̄", "ⲁ", false).Ranges.Count == 0, "Strict highlights exclude incomplete marked characters");
+    Check(SearchText.Highlight("First", "", true).Ranges.Count == 0, "Empty query has no highlight");
+    Check(SearchText.Highlight("Café", "cafe", true).Ranges.Single() == new MatchRange(0, 4), "Normalized highlights retain original accented text");
+    var latinFixture = new[] {
+        new DictionaryEntry { Word = "ⲁⲅⲁⲡⲏ", Senses = ["Love"] },
+        new DictionaryEntry { Word = "ⲃ", Senses = ["Agape"] },
+        new DictionaryEntry { Word = "ⲅ", Variants = ["ϣⲁⲓ"], Senses = ["Test variant"] }
+    };
+    File.WriteAllText(fixturePath, JsonSerializer.Serialize(latinFixture));
+    await sample.LoadAsync(fixturePath);
+    Check(sample.Search(new("agape"))[0].Word == "ⲃ", "Exact English meaning precedes approximate Latin spelling");
+    var variantMatch = sample.SearchMatches(new("shai", Scope: SearchScope.Transliteration)).Single();
+    Check(variantMatch.Entry.Word == "ⲅ" && variantMatch.EvidenceText.Text == "ϣⲁⲓ" && variantMatch.EvidenceText.Ranges.Count == 1, "Transliterated variant exposes and highlights its matching form");
     prefs.Notes[favoriteId] = "Bohairic note ⲁ̄"; prefs.EnglishTextSize = 20; prefs.CopticTextSize = 36; store.Save(prefs);
     var withNotes = store.Load();
     Check(withNotes.Notes[favoriteId] == "Bohairic note ⲁ̄" && withNotes.EnglishTextSize == 20 && withNotes.CopticTextSize == 36, "Notes and reading sizes persist");

@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace Bohairic.Core;
 
-public enum SearchScope { All, Coptic, English }
+public enum SearchScope { All, Coptic, English, Transliteration }
 public sealed record SearchOptions(string Query = "", string PartOfSpeech = "", string Initial = "",
     bool IgnoreMarks = true, IReadOnlySet<string>? FavoriteIds = null, SearchScope Scope = SearchScope.All);
 
@@ -14,7 +14,7 @@ public sealed class DictionaryService
 {
     private sealed record Indexed(DictionaryEntry Entry, string Word, string FoldedWord,
         string[] Forms, string[] FoldedForms, string Gloss, string FoldedGloss, string Metadata, string FoldedMetadata, string SortKey,
-        string[] Meanings, string[] Tokens, bool CrossReference);
+        string[] Meanings, string[] Tokens, bool CrossReference, string[][][] LatinForms);
     private static readonly Regex Words = new(@"[\p{L}\p{M}\p{N}]+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private static readonly Regex MeaningPrefix = new(@"^(?:(?:vt|vi|vb|v|n|m|f|adj|adv)\.\s*|to\s+)+", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private readonly List<Indexed> index = [];
@@ -41,7 +41,7 @@ public sealed class DictionaryService
                 forms.Select(x => Normalize(x, false)).ToArray(), forms.Select(x => Normalize(x, true)).ToArray(),
                 Normalize(gloss, false), Normalize(gloss, true), Normalize(metadata, false), Normalize(metadata, true), AlphabetKey(e.Word),
                 e.Senses.SelectMany(s => s.Split([',', ';', '\n'])).Select(s => MeaningPrefix.Replace(Normalize(s, true), "").Trim(' ', '.', '!', '?', '"')).ToArray(),
-                Tokens(Normalize(gloss, true)), e.PartOfSpeech.Equals("Cross-reference", StringComparison.OrdinalIgnoreCase) || e.Senses.All(s => s.StartsWith("See:", StringComparison.OrdinalIgnoreCase)))) ;
+                Tokens(Normalize(gloss, true)), e.PartOfSpeech.Equals("Cross-reference", StringComparison.OrdinalIgnoreCase) || e.Senses.All(s => s.StartsWith("See:", StringComparison.OrdinalIgnoreCase)), forms.Select(Transliteration.Index).ToArray()));
         }
         Entries = entries;
     }
@@ -99,13 +99,18 @@ public sealed class DictionaryService
     }
 
     public IReadOnlyList<DictionaryEntry> Search(SearchOptions options, CancellationToken cancellation = default)
+        => SearchMatches(options, cancellation).Select(x => x.Entry).ToArray();
+
+    public IReadOnlyList<SearchMatch> SearchMatches(SearchOptions options, CancellationToken cancellation = default)
     {
         string query = Normalize(options.Query, options.IgnoreMarks);
         string exactQuery = Normalize(options.Query, false);
         string initial = Normalize(options.Initial, true);
         string englishQuery = MeaningPrefix.Replace(Normalize(query, true).Trim(' ', '.', '!', '?', '"'), "");
         var queryTokens = Tokens(englishQuery);
-        var results = new List<(int Rank, Indexed Item)>();
+        string latinQuery = Normalize(query, true);
+        bool useLatin = options.Scope is SearchScope.All or SearchScope.Transliteration && Transliteration.IsQuery(latinQuery);
+        var results = new List<(int Rank, Indexed Item, string Label, string Evidence, bool Latin)>();
         foreach (var item in index)
         {
             cancellation.ThrowIfCancellationRequested();
@@ -115,14 +120,17 @@ public sealed class DictionaryService
             var forms = options.IgnoreMarks ? item.FoldedForms : item.Forms;
             var gloss = options.IgnoreMarks ? item.FoldedGloss : item.Gloss;
             var metadata = options.IgnoreMarks ? item.FoldedMetadata : item.Metadata;
-            int rank = query.Length == 0 ? 0 : options.Scope == SearchScope.English ? -1
+            int rank = query.Length == 0 ? 0 : options.Scope is SearchScope.English or SearchScope.Transliteration ? -1
                 : item.Word == exactQuery ? 0
                 : word == query ? 1
                 : forms.Contains(query) ? 2
                 : FormMatch(word, query, true, options.IgnoreMarks) ? 3
                 : forms.Any(f => FormMatch(f, query, true, options.IgnoreMarks)) ? 4
                 : forms.Any(f => FormMatch(f, query, false, options.IgnoreMarks)) ? 5 : -1;
-            if (rank < 0 && options.Scope != SearchScope.Coptic)
+            string label = query.Length == 0 ? "" : rank switch { 0 or 1 => "Headword · exact", 2 => "Variant · exact", 3 => "Headword · starts with", 4 or 5 => "Variant or headword · contains", _ => "" };
+            string evidence = rank is 2 or 4 or 5 ? entry.Variants.FirstOrDefault(v => FormMatch(Normalize(v, options.IgnoreMarks), query, false, options.IgnoreMarks)) ?? "" : "";
+            bool latin = false;
+            if (rank < 0 && options.Scope is SearchScope.All or SearchScope.English)
             {
                 // Complete meanings beat words in definitions; whole words beat incidental substrings.
                 rank = !ContainsCoptic(query) && item.Meanings.Contains(englishQuery) ? 10
@@ -130,19 +138,41 @@ public sealed class DictionaryService
                         ? (gloss.Contains(query, StringComparison.Ordinal) ? 11 : 12)
                     : gloss.Contains(query, StringComparison.Ordinal) ? 14
                     : options.Scope == SearchScope.All && metadata.Contains(query, StringComparison.Ordinal) ? 16 : -1;
+                label = rank switch { 10 => "English meaning · exact", 11 or 12 => "Definition · whole words", 14 => "Definition · contains", 16 => "Reference or etymology", _ => "" };
+                if (rank == 16) evidence = string.Join(" · ", new[] { entry.CrumReference, entry.Etymology, entry.GreekOrigin, entry.Tag }.Where(v => Normalize(v, options.IgnoreMarks).Contains(query, StringComparison.Ordinal)));
                 if (rank >= 0 && item.CrossReference) rank += 4;
             }
-            if (rank >= 0) results.Add((rank, item));
+            if (useLatin && (rank < 0 || rank > 13))
+            {
+                for (int i = 0; i < item.LatinForms.Length; i++)
+                {
+                    int match = Transliteration.Match(item.LatinForms[i], latinQuery);
+                    int latinRank = match == 0 ? 13 : 17;
+                    if (match < 0 || (rank >= 0 && rank <= latinRank)) continue;
+                    rank = latinRank;
+                    latin = true;
+                    label = match == 0 ? "Transliteration · approximate spelling" : "Transliteration · starts with (approximate)";
+                    evidence = entry.Variants.Append(entry.Word).Distinct().ElementAt(i);
+                }
+            }
+            if (rank >= 0) results.Add((rank, item, label, evidence, latin));
         }
         return results.OrderBy(x => x.Rank).ThenBy(x => x.Item.SortKey, StringComparer.Ordinal)
             .ThenBy(x => x.Item.Word, StringComparer.Ordinal).ThenBy(x => x.Item.Entry.PartOfSpeech, StringComparer.Ordinal)
-            .Select(x => x.Item.Entry).ToArray();
+            .Select(x => new SearchMatch(x.Item.Entry, x.Label,
+                x.Latin && x.Evidence == x.Item.Entry.Word
+                    ? new(x.Item.Entry.Word, new[] { new MatchRange(0, x.Item.Entry.Word.Length) })
+                    : SearchText.Highlight(x.Item.Entry.Word, options.Scope == SearchScope.English || x.Latin ? "" : query, options.IgnoreMarks),
+                SearchText.Highlight(x.Item.Entry.Preview, options.Scope is SearchScope.Coptic or SearchScope.Transliteration || x.Latin ? "" : query, options.IgnoreMarks),
+                x.Latin ? x.Evidence == x.Item.Entry.Word ? new("", []) : new(x.Evidence, new[] { new MatchRange(0, x.Evidence.Length) })
+                    : SearchText.Highlight(x.Evidence, query, options.IgnoreMarks))).ToArray();
     }
 
     /// <summary>Conservative spelling suggestions, explicitly chosen by the user; never substitute the query.</summary>
     public IReadOnlyList<string> Suggest(SearchOptions options, CancellationToken cancellation = default)
     {
         var query = Normalize(options.Query, options.IgnoreMarks);
+        if (options.Scope == SearchScope.Transliteration) return [];
         if (query.Length is < 3 or > 48 || query.Contains(' ')) return [];
         bool coptic = ContainsCoptic(query);
         if ((coptic && options.Scope == SearchScope.English) || (!coptic && options.Scope == SearchScope.Coptic)) return [];
